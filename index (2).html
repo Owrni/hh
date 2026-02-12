@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Симулятор Силы Архимеда</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 {
+            color: #2c3e50;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            width: 100%;
+            max-width: 1000px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 500px;
+            height: 400px;
+            border: 2px solid #bdc3c7;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #ecf0f1;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .controls {
+            flex: 1;
+            min-width: 250px;
+            padding: 10px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #34495e;
+        }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .value-display {
+            text-align: right;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f6f3;
+            border-radius: 8px;
+            border-left: 5px solid #1abc9c;
+        }
+
+        .stats h3 {
+            margin-top: 0;
+            color: #16a085;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .formula {
+            text-align: center;
+            margin-top: 10px;
+            font-style: italic;
+            color: #555;
+        }
+        
+        .preset-btn {
+            padding: 8px 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .preset-btn:hover {
+            background: #2980b9;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Лаборатория Силы Архимеда</h1>
+    <div class="formula">F<sub>A</sub> = ρ<sub>жидкости</sub> × g × V<sub>погруженной части</sub></div>
+
+    <div class="container">
+        <!-- Визуализация -->
+        <div class="canvas-container">
+            <canvas id="simCanvas" width="500" height="400"></canvas>
+        </div>
+
+        <!-- Панель управления -->
+        <div class="controls">
+            <div class="control-group">
+                <label>Пресеты жидкостей:</label>
+                <button class="preset-btn" onclick="setFluid(1000)">Вода</button>
+                <button class="preset-btn" onclick="setFluid(800)">Масло</button>
+                <button class="preset-btn" onclick="setFluid(13600)">Ртуть</button>
+            </div>
+
+            <div class="control-group">
+                <label>Плотность жидкости (ρ<sub>ж</sub>): <span id="fluidDensityVal">1000</span> кг/м³</label>
+                <input type="range" id="fluidDensity" min="100" max="14000" value="1000" step="10" oninput="updateValues()">
+            </div>
+
+            <div class="control-group">
+                <label>Плотность тела (ρ<sub>т</sub>): <span id="objectDensityVal">500</span> кг/м³</label>
+                <input type="range" id="objectDensity" min="100" max="5000" value="500" step="10" oninput="updateValues()">
+            </div>
+
+            <div class="control-group">
+                <label>Объем тела (V): <span id="objectVolumeVal">0.5</span> м³</label>
+                <input type="range" id="objectVolume" min="0.1" max="1.5" value="0.5" step="0.1" oninput="updateValues()">
+            </div>
+
+            <button class="preset-btn" style="width: 100%; background: #e74c3c;" onclick="resetSim()">Сброс (Бросить тело)</button>
+
+            <div class="stats">
+                <h3>Расчеты:</h3>
+                <div class="stat-row">
+                    <span>Сила Архимеда (F<sub>A</sub>):</span>
+                    <span id="forceArch">0 Н</span>
+                </div>
+                <div class="stat-row">
+                    <span>Сила Тяжести (F<sub>т</sub>):</span>
+                    <span id="forceGrav">0 Н</span>
+                </div>
+                <div class="stat-row">
+                    <span>Равнодействующая:</span>
+                    <span id="forceNet">0 Н</span>
+                </div>
+                <div class="stat-row" style="font-weight: bold; border-top: 1px solid #ccc; margin-top: 5px; padding-top: 5px;">
+                    <span>Состояние:</span>
+                    <span id="status">Плавает</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Физические константы и переменные
+        const G = 9.81; // Ускорение свободного падения
+        
+        let fluidDensity = 1000; // кг/м3
+        let objectDensity = 500; // кг/м3
+        let objectVolume = 0.5;  // м3
+        
+        // Масштаб для визуализации (1 м3 = X пикселей в объеме, но проще площадь)
+        // Для простоты визуализации считаем, что объем влияет на размер куба
+        // Пусть объем V = side^3. side = V^(1/3).
+        
+        let y = 50; // Позиция тела (верхний левый угол)
+        let vy = 0; // Скорость
+        
+        const WATER_LEVEL_Y = 150; // Уровень воды на канвасе
+        
+        function setFluid(val) {
+            document.getElementById('fluidDensity').value = val;
+            updateValues();
+        }
+
+        function updateValues() {
+            fluidDensity = parseFloat(document.getElementById('fluidDensity').value);
+            objectDensity = parseFloat(document.getElementById('objectDensity').value);
+            objectVolume = parseFloat(document.getElementById('objectVolume').value);
+            
+            // Обновление текста
+            document.getElementById('fluidDensityVal').innerText = fluidDensity;
+            document.getElementById('objectDensityVal').innerText = objectDensity;
+            document.getElementById('objectVolumeVal').innerText = objectVolume.toFixed(1);
+            
+            calculatePhysics();
+        }
+
+        function getSideLength() {
+            // Визуальный размер куба на основе объема
+            // Масштаб: корень кубический из объема * 50 пикселей
+            return Math.pow(objectVolume, 1/3) * 100;
+        }
+
+        function calculatePhysics() {
+            const side = getSideLength();
+            const mass = objectDensity * objectVolume;
+            const gravityForce = mass * G; // Сила тяжести
+
+            // Определяем погруженный объем
+            const bottom = y + side;
+            let submergedHeight = 0;
+
+            if (y >= WATER_LEVEL_Y) {
+                // Тело полностью над водой (или касается верхним краем, если y=waterlevel)
+                submergedHeight = 0;
+            } else if (bottom <= WATER_LEVEL_Y) {
+                // Тело полностью под водой
+                submergedHeight = side;
+            } else {
+                // Частично погружено
+                submergedHeight = bottom - WATER_LEVEL_Y;
+            }
+
+            // Объем погруженной части пропорционален высоте
+            // V_sub = (submergedHeight / side) * totalVolume
+            const ratioSubmerged = submergedHeight / side;
+            const submergedVolume = ratioSubmerged * objectVolume;
+
+            const archimedesForce = fluidDensity * G * submergedVolume;
+
+            // Обновление UI
+            document.getElementById('forceArch').innerText = archimedesForce.toFixed(1) + " Н";
+            document.getElementById('forceGrav').innerText = gravityForce.toFixed(1) + " Н";
+            
+            const netForce = gravityForce - archimedesForce;
+            document.getElementById('forceNet').innerText = netForce.toFixed(1) + " Н";
+
+            // Статус
+            const statusEl = document.getElementById('status');
+            if (Math.abs(netForce) < 0.5 && y + side > WATER_LEVEL_Y + 2) {
+                statusEl.innerText = "Равновесие (Плавает)";
+                statusEl.style.color = "green";
+            } else if (netForce > 0) {
+                statusEl.innerText = "Тонет";
+                statusEl.style.color = "red";
+            } else {
+                statusEl.innerText = "Всплывает";
+                statusEl.style.color = "blue";
+            }
+
+            return { gravityForce, archimedesForce, mass, side };
+        }
+
+        function draw() {
+            // Очистка
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const side = getSideLength();
+
+            // 1. Рисуем Воду
+            // Цвет воды зависит от плотности
+            let waterColor = `rgba(52, 152, 219, 0.6)`; // Вода
+            if (fluidDensity > 2000) waterColor = `rgba(108, 122, 137, 0.7)`; // Ртуть
+            else if (fluidDensity < 900) waterColor = `rgba(241, 196, 15, 0.6)`; // Масло
+
+            ctx.fillStyle = waterColor;
+            ctx.fillRect(0, WATER_LEVEL_Y, canvas.width, canvas.height - WATER_LEVEL_Y);
+
+            // Линия горизонта
+            ctx.beginPath();
+            ctx.moveTo(0, WATER_LEVEL_Y);
+            ctx.lineTo(canvas.width, WATER_LEVEL_Y);
+            ctx.strokeStyle = '#2980b9';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 2. Рисуем Тело
+            // Цвет тела зависит от плотности
+            let objColor = '#e67e22'; // Дерево/Легкое
+            if (objectDensity > 2500) objColor = '#7f8c8d'; // Камень/Тяжелое
+            else if (objectDensity > 1500) objColor = '#95a5a6'; 
+
+            ctx.fillStyle = objColor;
+            ctx.fillRect(200, y, side, side);
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(200, y, side, side);
+
+            // 3. Рисуем векторы сил
+            const centerX = 200 + side / 2;
+            const centerY = y + side / 2;
+            
+            // Получаем силы
+            const forces = calculatePhysics();
+            
+            // Масштаб стрелок (1 Н = 0.5 пикселя, для наглядности)
+            const scale = 0.5;
+
+            // Стрелка Силы Тяжести (Вниз, Красная)
+            const gLen = forces.gravityForce * scale;
+            drawArrow(ctx, centerX, centerY, centerX, centerY + gLen, 'red', 'Fт');
+
+            // Стрелка Силы Архимеда (Вверх, Зеленая)
+            if (forces.archimedesForce > 0) {
+                const aLen = forces.archimedesForce * scale;
+                drawArrow(ctx, centerX, centerY, centerX, centerY - aLen, 'green', 'Fa');
+            }
+        }
+
+        function drawArrow(ctx, fromX, fromY, toX, toY, color, label) {
+            const headLength = 10;
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+
+            // Линия
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+
+            // Наконечник
+            ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+
+            // Подпись
+            ctx.font = "bold 14px Arial";
+            ctx.fillText(label, toX + 10, toY);
+        }
+
+        function update() {
+            const { gravityForce, archimedesForce, mass } = calculatePhysics();
+            
+            // F = ma -> a = F/m
+            const netForce = gravityForce - archimedesForce;
+            const acceleration = netForce / mass;
+
+            // Применяем физику
+            vy += acceleration * 0.05; // 0.05 - dt (шаг времени)
+            
+            // Демпфирование (сопротивление воды, чтобы не дергалось)
+            if (y + getSideLength() > WATER_LEVEL_Y) {
+                vy *= 0.95; 
+            } else {
+                vy *= 0.99; // Сопротивление воздуха меньше
+            }
+
+            y += vy;
+
+            // Границы (дно)
+            if (y + getSideLength() > canvas.height - 10) {
+                y = canvas.height - 10 - getSideLength();
+                vy = 0;
+            }
+            
+            // Верхний предел
+            if (y < 0) y = 0;
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function resetSim() {
+            y = 50; // Начальная позиция сверху
+            vy = 0;
+        }
+
+        // Запуск
+        updateValues();
+        update();
+
+    </script>
+</body>
+</html>
